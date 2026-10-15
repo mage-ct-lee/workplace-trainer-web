@@ -1,24 +1,26 @@
-// 職場小白訓練（靜態版）。題目、答案、解說都在 data.js，由
-// workplace-trainer 的 tools/build_static.py 產生；這裡只負責抽題、
-// 打亂選項、比對答案，進度存在這台裝置的瀏覽器（localStorage）。
+// The static version of the workplace trainer. The questions,
+// answers and explanations are in data.js, which
+// tools/build_static.py of workplace-trainer makes. This file picks
+// questions, shuffles the choices and grades the answers. It keeps
+// the progress in the browser of this device (localStorage).
 (function () {
   "use strict";
 
   var D = window.WRK;
   var STORE = "wrk-web-v1";
-  var SESSION = 20;        // 單元練習一次幾題
-  var EXAM = 40;           // 關卡測驗一次幾題
-  var FINAL_EXAM = 100;    // 最終測驗
-  var PASS = 0.9;          // 關卡測驗過關線
+  var SESSION = 20;        // questions in one unit practice
+  var EXAM = 40;           // questions in one level exam
+  var FINAL_EXAM = 100;    // questions in the final exam
+  var PASS = 0.9;          // threshold of a level exam
   var app = document.getElementById("app");
 
-  // --- 進度 ---------------------------------------------------------------
+  // --- progress ------------------------------------------------------------
 
   function load() {
     try {
       var raw = localStorage.getItem(STORE);
       if (raw) return JSON.parse(raw);
-    } catch (e) { /* 私密模式或被封鎖：這次不存 */ }
+    } catch (e) { /* private mode or blocked: do not keep it this time */ }
     return { items: {}, exams: {} };
   }
   var state = load();
@@ -39,7 +41,7 @@
     save();
   }
 
-  // --- 題庫 ---------------------------------------------------------------
+  // --- bank --------------------------------------------------------------
 
   var unitTitle = {};
   var levelOf = {};
@@ -50,7 +52,8 @@
     });
   });
 
-  // 一個 item（一題、一個用語、一種計算）可能有好幾個版本。
+  // One item (a question, a term or a calculator question) can have
+  // many versions.
   function itemsOf(units) {
     var map = {};
     units.forEach(function (u) {
@@ -83,7 +86,9 @@
 
   function sample(list, n) { return shuffle(list).slice(0, n); }
 
-  // 練習：沒做過的、上次答錯的先出，其餘挑最久沒碰的；同分隨機。
+  // Practice: first the items not seen and the items answered wrongly
+  // last time, then the items not seen for the longest time. Equal
+  // ranks are in a random sequence.
   function practicePick(map, n) {
     var scored = Object.keys(map).map(function (item) {
       var s = state.items[item];
@@ -97,7 +102,8 @@
     return shuffle(scored.slice(0, n).map(function (x) { return x.item; }));
   }
 
-  // 把一題變成這次要顯示的樣子：挑版本、挑三個錯的選項、打亂順序。
+  // Prepare one question for the screen: pick a version, pick three
+  // incorrect choices and shuffle the choices.
   function build(map, item) {
     var q = map[item][Math.floor(Math.random() * map[item].length)];
     var out = { item: item, q: q };
@@ -107,7 +113,7 @@
     return out;
   }
 
-  // --- 畫面 ---------------------------------------------------------------
+  // --- screens ------------------------------------------------------------
 
   function esc(text) {
     return String(text).replace(/[&<>"']/g, function (c) {
@@ -131,7 +137,8 @@
     return name;
   }
 
-  // 淺色／深色：沒選過就跟系統，按一下換成另一種並記住。
+  // Light or dark: follow the system until the reader selects one. A
+  // click changes to the other theme and keeps it.
   var themeBtn = document.getElementById("theme");
   function currentTheme() {
     var set = document.documentElement.dataset.theme;
@@ -172,12 +179,13 @@
     header();
     var missed = Object.keys(missedItems()).length;
     var html = "<h1>職場小白訓練</h1>" +
-      '<div class="card"><p>給剛進台灣科技業的新人（各種職位）：email、' +
-      "會議、向上管理、跨部門、勞動法規與現實裡的潛規則、畫大餅與 PUA " +
-      "怎麼辨識與自保，還有真實的職場鬼故事。先讀教材再練習；每次從題庫" +
-      "隨機抽題，沒做過和答錯的會優先出。</p>" +
-      '<p class="muted">共同基礎（第 0～12 關）之後分台廠線與外商線，' +
-      "兩線互不影響，最後的總測驗兩線都會考。</p>" +
+      '<div class="card"><p>這套練習題給剛進台灣科技業的新鮮人，適用各種' +
+      "職位。內容包含電子郵件、會議、向上管理、跨部門合作、勞動法規與" +
+      "現實裡的潛規則、如何辨識畫大餅與 PUA 並保護自己，以及真實的職場" +
+      "鬼故事。先讀教材，再練習。每次練習從題庫隨機抽題，沒有做過與答錯" +
+      "的題目優先出現。</p>" +
+      '<p class="muted">共同基礎是第 0～12 關。之後分為台廠線與外商線，' +
+      "兩條線互不影響。最終測驗包含兩條線的題目。</p>" +
       '<div class="row">' +
       (missed ? '<a class="btn primary" href="#/review">錯題複習（' +
         missed + " 題）</a>" : "") +
@@ -216,16 +224,16 @@
     });
     var best = state.exams[lvl.id];
     var tag = best === undefined ? "" :
-      '<span class="tag' + (best >= PASS ? " done" : "") + '">測驗 ' +
+      '<span class="tag' + (best >= PASS ? " done" : "") + '">總驗收 ' +
       Math.round(best * 100) + "%</span>";
     return '<details class="card level"><summary><span>' +
       '<span class="level-title">第 ' + lvl.id + " 關　" + esc(lvl.title) +
-      '</span><br><span class="muted" style="font-size:13px">熟練 ' +
-      done + "/" + total + " ・過關稱號：" + esc(lvl.rank) + "</span></span>" +
+      '</span><br><span class="muted" style="font-size:13px">已答對 ' +
+      done + "/" + total + " ・達標稱號：" + esc(lvl.rank) + "</span></span>" +
       tag + "</summary>" + units +
       '<div class="row" style="margin-top:10px">' +
       '<a class="btn" href="#/exam/' + lvl.id + '">' +
-      (lvl.id === D.final ? "最終測驗" : "關卡測驗") + "</a></div></details>";
+      (lvl.id === D.final ? "最終測驗" : "總驗收") + "</a></div></details>";
   }
 
   function unitPage(unit) {
@@ -238,17 +246,17 @@
         (c.source ? '<br><span class="muted">出處：' + linkify(c.source) +
           "</span>" : "") + "</div>";
     }).join("");
-    app.innerHTML = '<p><a href="#/">← 回關卡列表</a></p>' +
+    app.innerHTML = '<p><a href="#/">← 回關卡地圖</a></p>' +
       "<h1>" + esc(unit + " " + unitTitle[unit]) + "</h1>" +
       '<div class="card lesson">' + D.lessons[unit] + "</div>" +
-      (cards.length ? '<details class="card"><summary>本單元的職場故事（' +
+      (cards.length ? '<details class="card"><summary>本單元的笑話與鬼故事（' +
         cards.length + " 則）</summary>" + stories + "</details>" : "") +
       '<div class="row"><a class="btn primary" href="#/practice/' + unit +
       '">開始練習</a></div>';
     window.scrollTo(0, 0);
   }
 
-  // --- 作答 ---------------------------------------------------------------
+  // --- answers ------------------------------------------------------------
 
   var run = null;
 
@@ -354,10 +362,10 @@
     if (run.kind === "exam") {
       var before = state.exams[run.extra] || 0;
       if (share > before) { state.exams[run.extra] = share; save(); }
-      note = share >= PASS ? "<p>過關！稱號：" +
+      note = share >= PASS ? "<p>達標。稱號：" +
         esc(D.levels[run.extra].rank) + "</p>" :
-        '<p class="muted">要答對 ' + Math.round(PASS * 100) +
-        "% 才算過關，先複習錯的再來。</p>";
+        '<p class="muted">答對至少 ' + Math.round(PASS * 100) +
+        "% 才達標。先複習答錯的題目，再考一次。</p>";
     }
     var story = "";
     if (run.kind === "practice") {
@@ -373,7 +381,7 @@
       var ans = m.q.a !== undefined ? m.q.a : m.q.shown;
       return "<li>" + esc(m.q.text.slice(0, 80)) +
         (m.q.text.length > 80 ? "…" : "") + '<br><span class="muted">' +
-        "答案：" + esc(ans) + "</span></li>";
+        "正確答案：" + esc(ans) + "</span></li>";
     }).join("");
     app.innerHTML = '<div class="card"><div class="muted">' +
       esc(run.title) + '</div><div class="score">' + run.right + " / " +
@@ -382,7 +390,7 @@
         "</ul>" : "<p>全部答對。</p>") + "</div>" + story +
       '<div class="row"><button class="btn primary" id="again">再練一次' +
       '</button><a class="btn" href="' + run.back + '">回上一頁</a>' +
-      '<a class="btn" href="#/">回關卡列表</a></div>';
+      '<a class="btn" href="#/">回關卡地圖</a></div>';
     document.getElementById("again").onclick = function () { route(true); };
     window.scrollTo(0, 0);
   }
@@ -397,7 +405,7 @@
     var lvl = D.levels[id];
     var map = itemsOf(lvl.exam);
     var n = id === D.final ? FINAL_EXAM : EXAM;
-    start("exam", "第 " + id + " 關測驗：" + lvl.title, map,
+    start("exam", "第 " + id + " 關總驗收：" + lvl.title, map,
           sample(Object.keys(map), n), "#/", id);
   }
 
@@ -408,7 +416,7 @@
     start("review", "錯題複習", map, sample(items, SESSION), "#/", null);
   }
 
-  // --- 路由 ---------------------------------------------------------------
+  // --- routes ------------------------------------------------------------
 
   function route(force) {
     var parts = (location.hash || "#/").slice(2).split("/");
